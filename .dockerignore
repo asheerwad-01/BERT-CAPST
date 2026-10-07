@@ -1,0 +1,49 @@
+# Ignore Python cache & temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.log
+
+# Ignore virtual environments
+venv/
+.venv/
+my-env/
+.env
+
+# Ignore git & IDE configs
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+
+# Ignore notebooks and Streamlit app
+notebooks/
+streamlit/
+
+# Ignore model and large files
+ecommerce-recommender-models/
+flask_app/model/
+flask_app/brand_embeddings_chunk.npy
+flask_app/user_recommender_embeddings.npy
+*.npy
+*.npz
+*.pkl
+*.pt
+*.h5
+*.csv
+*.tflite
+*.keras
+*.joblib
+
+
+README.md
+LICENSE
+
+
+
+
+
+

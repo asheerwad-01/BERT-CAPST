@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid RL E-Commerce Recommender System & Interactive Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0b0f19;
+            --card-bg: rgba(22, 30, 46, 0.88);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --accent-rose: #f43f5e;
+            --accent-amber: #f59e0b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 24px;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.12) 0%, transparent 40%);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--card-border);
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header h1 {
+            font-size: 1.85rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45); }
+
+        .btn-green {
+            background: linear-gradient(135deg, #059669, #10b981);
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-outline {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-main);
+        }
+        .btn-outline:hover { background: rgba(255, 255, 255, 0.1); }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-label { font-size: 0.75rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 6px; }
+
+        .text-green { color: var(--accent-green); }
+        .text-cyan { color: var(--accent-cyan); }
+        .text-purple { color: var(--accent-purple); }
+        .text-amber { color: var(--accent-amber); }
+        .text-rose { color: var(--accent-rose); }
+
+        /* Main Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .full-width { grid-column: 1 / -1; }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 22px;
+        }
+
+        .card-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+        }
+
+        /* Product Selector Grid */
+        .catalog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 14px;
+            max-height: 380px;
+            overflow-y: auto;
+            padding-right: 6px;
+            margin-top: 14px;
+        }
+
+        .product-card {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .product-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+            background: rgba(30, 41, 59, 0.8);
+        }
+
+        .badge-store {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .product-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            line-height: 1.35;
+            padding-right: 50px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .product-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 0.8rem;
+        }
+
+        .product-price { font-weight: 800; color: var(--accent-green); }
+        .product-brand { color: var(--text-sub); }
+
+        .select-count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent-amber);
+            color: #000;
+            font-weight: 800;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 0.75rem;
+            margin-left: 6px;
+        }
+
+        /* Selection Tray */
+        .tray-box {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 14px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .tray-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            min-height: 40px;
+            align-items: center;
+        }
+
+        .chip {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #93c5fd;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .chip-remove {
+            cursor: pointer;
+            color: #f87171;
+            font-weight: 800;
+            margin-left: 4px;
+        }
+        .chip-remove:hover { color: #ef4444; }
+
+        /* Recommendations Result Grid */
+        .rec-results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .rec-card {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(15, 23, 42, 0.9));
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            border-radius: 16px;
+            padding: 16px;
+            position: relative;
+        }
+
+        .rec-rank {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--accent-green);
+            color: #000;
+            font-weight: 800;
+            font-size: 0.72rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        @media (max-width: 900px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1><span>🛒</span> E-Commerce Hybrid RL Recommender System & Studio</h1>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" onclick="loadDashboardData()">🔄 Refresh Data</button>
+            <a href="#interactive-studio" class="btn btn-green">🛍️ Interactive Product Selector</a>
+        </div>
+    </div>
+
+    <!-- Overview Metrics Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Episodes Trained</div>
+            <div class="stat-value text-cyan" id="val-episodes">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Top-10 Accuracy</div>
+            <div class="stat-value text-green" id="val-accuracy">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Precision@10</div>
+            <div class="stat-value text-purple" id="val-precision">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Recall@10</div>
+            <div class="stat-value text-cyan" id="val-recall">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">F1-Score@10</div>
+            <div class="stat-value text-amber" id="val-f1">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">NDCG@10</div>
+            <div class="stat-value text-purple" id="val-ndcg">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">MRR Score</div>
+            <div class="stat-value text-green" id="val-mrr">--</div>
+        </div>
+    </div>
+
+    <!-- INTERACTIVE PRODUCT SELECTOR STUDIO -->
+    <div class="card" id="interactive-studio" style="margin-bottom: 24px;">
+        <div class="card-title">
+            <span>🛍️ Interactive Multi-Selection Product Recommendation Studio</span>
+            <span style="font-size: 0.85rem; color: var(--text-sub); font-weight: 400;">Select products as many times as you like!</span>
+        </div>
+        <p style="color: var(--text-sub); font-size: 0.9rem;">Click on any product from your <code>dataset_sample</code> catalog below to add it to your user interaction history. You can click a product <b>multiple times</b> to simulate repeated browsing/viewing frequency!</p>
+
+        <!-- Product Catalog Selector Grid -->
+        <div class="catalog-grid" id="catalog-container">
+            <div style="color: var(--text-sub); font-size: 0.9rem;">Loading dataset products...</div>
+        </div>
+
+        <!-- Selected Sequence & Controls Tray -->
+        <div class="tray-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <strong style="color: #60a5fa; font-size: 0.95rem;">Active User Interaction History Sequence:</strong>
+                    <span id="tray-count" style="color: var(--text-sub); font-size: 0.85rem; margin-left: 8px;">(0 items selected)</span>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="clearSelection()">🗑️ Clear Selections</button>
+                    <button class="btn btn-green" onclick="submitRecommendation()">⚡ Get ML Recommendations</button>
+                </div>
+            </div>
+
+            <div class="tray-chips" id="tray-chips">
+                <span style="color: var(--text-sub); font-size: 0.85rem; font-style: italic;">No products selected yet. Click products above to select!</span>
+            </div>
+        </div>
+
+        <!-- Recommendations Result Container -->
+        <div id="recommendation-results" style="display: none; margin-top: 24px;">
+            <h3 style="font-size: 1.1rem; color: var(--accent-green); margin-bottom: 12px;">✨ Model Recommended Products (Powered by Trained Transformer-DQN):</h3>
+            <div class="rec-results-grid" id="rec-cards-container"></div>
+        </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="grid-2">
+        <!-- Reward Convergence -->
+        <div class="card">
+            <div class="card-title">📈 Reward Convergence & Moving Average</div>
+            <div class="chart-container">
+                <canvas id="chart-rewards"></canvas>
+            </div>
+        </div>
+
+        <!-- Evaluation Metrics @ K Bar Chart -->
+        <div class="card">
+            <div class="card-title">📊 Evaluation Metrics @ K (Precision, Recall, F1, NDCG)</div>
+            <div class="chart-container">
+                <canvas id="chart-eval-k"></canvas>
+            </div>
+        </div>
+
+        <!-- Epsilon Decay -->
+        <div class="card">
+            <div class="card-title">⚡ Exploration Epsilon Decay Schedule</div>
+            <div class="chart-container">
+                <canvas id="chart-epsilon"></canvas>
+            </div>
+        </div>
+
+        <!-- Action Selection Counts -->
+        <div class="card">
+            <div class="card-title">📊 Product Recommendation Frequencies</div>
+            <div class="chart-container">
+                <canvas id="chart-actions"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let catalogData = [];
+        let selectedSequence = [];
+        let selectionCounts = {};
+        let chartRewards, chartEpsilon, chartActions, chartEvalK;
+
+        async function loadCatalog() {
+            try {
+                const res = await fetch('/api/catalog');
+                if (!res.ok) throw new Error("Catalog load failed");
+                catalogData = await res.json();
+                renderCatalog();
+            } catch (err) {
+                console.error("Error loading catalog:", err);
+            }
+        }
+
+        function renderCatalog() {
+            const container = document.getElementById('catalog-container');
+            container.innerHTML = '';
+
+            catalogData.slice(0, 16).forEach(prod => {
+                const count = selectionCounts[prod.id] || 0;
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.onclick = () => selectProduct(prod.id);
+
+                card.innerHTML = `
+                    <span class="badge-store">${prod.store}</span>
+                    <div class="product-title">${prod.title}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-sub);">${prod.category}</div>
+                    <div class="product-meta">
+                        <span class="product-brand">${prod.brand}</span>
+                        <span class="product-price">$${prod.price.toFixed(2)}</span>
+                    </div>
+                    <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <button class="btn btn-outline" style="padding: 4px 10px; font-size: 0.75rem;">+ Select Item</button>
+                        ${count > 0 ? `<span class="select-count-badge">x${count}</span>` : ''}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function selectProduct(id) {
+            selectedSequence.push(id);
+            selectionCounts[id] = (selectionCounts[id] || 0) + 1;
+            renderCatalog();
+            renderTray();
+        }
+
+        function removeProduct(id) {
+            const idx = selectedSequence.indexOf(id);
+            if (idx > -1) {
+                selectedSequence.splice(idx, 1);
+                selectionCounts[id]--;
+                if (selectionCounts[id] <= 0) delete selectionCounts[id];
+            }
+            renderCatalog();
+            renderTray();
+        }
+
+        function clearSelection() {
+            selectedSequence = [];
+            selectionCounts = {};
+            renderCatalog();
+            renderTray();
+            document.getElementById('recommendation-results').style.display = 'none';
+        }
+
+        function renderTray() {
+            const container = document.getElementById('tray-chips');
+            document.getElementById('tray-count').innerText = `(${selectedSequence.length} selections)`;
+
+            if (selectedSequence.length === 0) {
+                container.innerHTML = '<span style="color: var(--text-sub); font-size: 0.85rem; font-style: italic;">No products selected yet. Click products above to select!</span>';
+                return;
+            }
+
+            container.innerHTML = '';
+            selectedSequence.forEach((id, idx) => {
+                const prod = catalogData.find(p => p.id === id) || { title: `Product #${id}` };
+                const chip = document.createElement('div');
+                chip.className = 'chip';
+                chip.innerHTML = `
+                    <span>#${idx+1}: <b>${prod.title.substring(0, 25)}...</b></span>
+                    <span class="chip-remove" onclick="event.stopPropagation(); removeProduct(${id})">×</span>
+                `;
+                container.appendChild(chip);
+            });
+        }
+
+        async function submitRecommendation() {
+            if (selectedSequence.length === 0) {
+                alert("Please click and select at least one product first!");
+                return;
+            }
+
+            try {
+                const res = await fetch('/recommend', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ history: selectedSequence })
+                });
+
+                if (!res.ok) throw new Error("Recommendation endpoint failed");
+                const data = await res.json();
+                renderRecommendations(data);
+            } catch (err) {
+                alert("Recommendation error: " + err.message);
+            }
+        }
+
+        function renderRecommendations(data) {
+            const container = document.getElementById('rec-cards-container');
+            const resultBox = document.getElementById('recommendation-results');
+            container.innerHTML = '';
+
+            data.ranked_recommendations.forEach(rec => {
+                const prod = rec.product;
+                const card = document.createElement('div');
+                card.className = 'rec-card';
+                card.innerHTML = `
+                    <span class="rec-rank">Rank #${rec.rank} (${rec.confidence_score})</span>
+                    <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 700; margin-bottom: 4px;">STORE: ${prod.store}</div>
+                    <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 6px; line-height: 1.3;">${prod.title}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-sub);">${prod.category}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+                        <span style="font-weight: 800; color: var(--accent-green); font-size: 1rem;">$${prod.price.toFixed(2)}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-sub);">Q-Score: ${rec.q_value.toFixed(1)}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            resultBox.style.display = 'block';
+            resultBox.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function loadDashboardData() {
+            try {
+                const res = await fetch('/api/metrics');
+                if (!res.ok) return;
+                const data = await res.json();
+                renderDashboard(data);
+            } catch (err) {
+                console.warn("Metrics load error:", err);
+            }
+        }
+
+        function renderDashboard(data) {
+            if (!data) return;
+
+            // Stat Cards
+            document.getElementById('val-episodes').innerText = data.episodes || (data.rewards ? data.rewards.length : 0);
+            
+            if (data.evaluation) {
+                document.getElementById('val-accuracy').innerText = (data.evaluation.accuracy_top10 * 100).toFixed(1) + '%';
+                document.getElementById('val-precision').innerText = data.evaluation.precision["K=10"].toFixed(3);
+                document.getElementById('val-recall').innerText = data.evaluation.recall["K=10"].toFixed(3);
+                document.getElementById('val-f1').innerText = data.evaluation.f1["K=10"].toFixed(3);
+                document.getElementById('val-ndcg').innerText = data.evaluation.ndcg["K=10"].toFixed(3);
+                document.getElementById('val-mrr').innerText = data.evaluation.mrr.toFixed(4);
+            }
+
+            if (!data.rewards) return;
+
+            const episodes = Array.from({length: data.rewards.length}, (_, i) => i + 1);
+            const windowSize = 20;
+            const rollingAvg = data.rewards.map((val, idx, arr) => {
+                if (idx < windowSize - 1) return null;
+                const slice = arr.slice(idx - windowSize + 1, idx + 1);
+                return slice.reduce((a, b) => a + b, 0) / windowSize;
+            });
+
+            // Reward Chart
+            const ctxReward = document.getElementById('chart-rewards').getContext('2d');
+            if (chartRewards) chartRewards.destroy();
+            chartRewards = new Chart(ctxReward, {
+                type: 'line',
+                data: {
+                    labels: episodes,
+                    datasets: [
+                        { label: 'Episode Reward', data: data.rewards, borderColor: 'rgba(59, 130, 246, 0.45)', borderWidth: 1, pointRadius: 0 },
+                        { label: '20-Ep Moving Avg', data: rollingAvg, borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Evaluation Chart
+            if (data.evaluation) {
+                const ctxEval = document.getElementById('chart-eval-k').getContext('2d');
+                if (chartEvalK) chartEvalK.destroy();
+                chartEvalK = new Chart(ctxEval, {
+                    type: 'bar',
+                    data: {
+                        labels: ['K=1', 'K=3', 'K=5', 'K=10'],
+                        datasets: [
+                            { label: 'Precision@K', data: [data.evaluation.precision["K=1"], data.evaluation.precision["K=3"], data.evaluation.precision["K=5"], data.evaluation.precision["K=10"]], backgroundColor: '#3b82f6' },
+                            { label: 'Recall@K', data: [data.evaluation.recall["K=1"], data.evaluation.recall["K=3"], data.evaluation.recall["K=5"], data.evaluation.recall["K=10"]], backgroundColor: '#10b981' },
+                            { label: 'F1@K', data: [data.evaluation.f1["K=1"], data.evaluation.f1["K=3"], data.evaluation.f1["K=5"], data.evaluation.f1["K=10"]], backgroundColor: '#f59e0b' },
+                            { label: 'NDCG@K', data: [data.evaluation.ndcg["K=1"], data.evaluation.ndcg["K=3"], data.evaluation.ndcg["K=5"], data.evaluation.ndcg["K=10"]], backgroundColor: '#8b5cf6' }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+
+            // Epsilon Chart
+            const ctxEps = document.getElementById('chart-epsilon').getContext('2d');
+            if (chartEpsilon) chartEpsilon.destroy();
+            chartEpsilon = new Chart(ctxEps, {
+                type: 'line',
+                data: {
+                    labels: episodes,
+                    datasets: [{ label: 'Epsilon Decay', data: data.epsilon, borderColor: '#f43f5e', borderWidth: 2, pointRadius: 0 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Action Distribution Chart
+            const ctxActions = document.getElementById('chart-actions').getContext('2d');
+            if (chartActions) chartActions.destroy();
+            chartActions = new Chart(ctxActions, {
+                type: 'bar',
+                data: {
+                    labels: data.action_counts.map((_, i) => `Item ${i+1}`),
+                    datasets: [{ label: 'Recommendation Counts', data: data.action_counts, backgroundColor: '#06b6d4' }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        // Initialize on load
+        loadCatalog();
+        loadDashboardData();
+    </script>
+</body>
+</html>
