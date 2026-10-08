@@ -23,11 +23,13 @@ DAGSHUB_REPO_OWNER = "dagshub_name"
 DAGSHUB_REPO_NAME = "dagshub_name"
 DAGSHUB_TOKEN = "dagshub_token"
 
-my_token =DAGSHUB_TOKEN
+my_token = DAGSHUB_TOKEN
 
-dagshub.auth.add_app_token(my_token)
-
-dagshub.init(repo_owner=DAGSHUB_REPO_OWNER, repo_name=DAGSHUB_REPO_NAME , mlflow=True)
+try:
+    dagshub.auth.add_app_token(my_token)
+    dagshub.init(repo_owner=DAGSHUB_REPO_OWNER, repo_name=DAGSHUB_REPO_NAME , mlflow=True)
+except Exception as e:
+    print(f"DagsHub init skipped: {type(e).__name__}")
 
 mlflow.set_experiment("hybrid-recommender")
 
@@ -345,13 +347,13 @@ converter.target_spec.supported_ops = [
     tf.lite.OpsSet.SELECT_TF_OPS 
 ]
     
-    try:
-        tflite_model = converter.convert()
-        with open('hybrid_dqn_model.tflite', 'wb') as f:
-            f.write(tflite_model)
+try:
+    tflite_model = converter.convert()
+    with open('hybrid_dqn_model.tflite', 'wb') as f:
+        f.write(tflite_model)
         
-        mlflow.log_artifact('hybrid_dqn_model.tflite')
-        print("saved and uploaded to DagsHub.")
-    except Exception as e:
-        print(f"Failed: {e}")
+    mlflow.log_artifact('hybrid_dqn_model.tflite')
+    print("saved and uploaded to DagsHub.")
+except Exception as e:
+    print(f"Failed: {e}")
 

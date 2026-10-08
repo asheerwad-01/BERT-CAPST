@@ -40,7 +40,7 @@ try:
     dagshub.auth.add_app_token(DAGSHUB_TOKEN)
     dagshub.init(repo_owner=DAGSHUB_REPO_OWNER, repo_name=DAGSHUB_REPO_NAME, mlflow=True)
 except Exception as e:
-    print(f"DagsHub init skipped (using local MLflow): {e}")
+    print(f"DagsHub init skipped (using local MLflow): {type(e).__name__}")
 
 mlflow.set_experiment("hybrid-recommender")
 
@@ -581,7 +581,7 @@ FIXES INCLUDED
 14. More robust training loop.
 15. Existing MLflow, dashboard and TFLite functionality retained.
 
-NOTE
+# NOTE
 ----
 The environment still contains a simulated interaction mechanism because
 your current dataset does not necessarily provide an explicit counterfactual
@@ -591,7 +591,6 @@ For a true offline recommender evaluation, the environment should eventually
 be replaced with logged-interaction/offline-RL evaluation.
 """
 
-from tensorflow.python.platform import self_check
 import json
 import os
 import random
@@ -656,7 +655,7 @@ try:
     )
 
 except Exception as e:
-    print(f"DagsHub init skipped (using local MLflow): {e}")
+    print(f"DagsHub init skipped (using local MLflow): {type(e).__name__}")
 
 mlflow.set_experiment("hybrid-recommender")
 
@@ -1515,59 +1514,6 @@ def build_hybrid_model(history_length, action_size, vocab_size=11):
     )
 
     return model
-    
-    # .........................................................
-
-    def dueling_combine(args):
-
-        val, adv = args
-
-        return (
-            val
-            + (
-                adv
-                - tf.reduce_mean(
-                    adv,
-                    axis=-1,
-                    keepdims=True,
-                )
-            )
-        )
-
-    outputs = tf.keras.layers.Lambda(
-        dueling_combine,
-        name="q_values",
-    )(
-        [value, advantage]
-    )
-
-    model = Model(
-        inputs=inputs,
-        outputs=outputs,
-    )
-
-    # --------------------------------------------------------
-    # FIX #3:
-    #
-    # Learning rate reduced from 3e-4 to 1e-4.
-    #
-    # This is important because the previous Q-values were
-    # diverging aggressively.
-    # --------------------------------------------------------
-
-    optimizer = Adam(
-        learning_rate=LEARNING_RATE,
-        clipnorm=1.0,
-    )
-
-    model.compile(
-        optimizer=optimizer,
-        loss=tf.keras.losses.Huber(
-            delta=1.0
-        ),
-    )
-
-    return model
 
 
 # ============================================================
@@ -1576,30 +1522,32 @@ def build_hybrid_model(history_length, action_size, vocab_size=11):
 
 class ReplayBuffer:
     """
-    Simple uniform experience replay buffer.
+    Uniform experience replay buffer.
 
-    We are intentionally NOT using Prioritized Experience Replay
-    during stabilization.
+    PER is intentionally disabled while stabilizing the
+    Transformer-DQN.
 
-    Why:
-    PER can amplify very large TD-errors. Since your original
-    problem was exploding loss, we first want a stable baseline.
+    This prevents large TD-errors from causing the same
+    problematic experiences to be sampled excessively.
     """
 
     def __init__(self, max_size=10000):
         self.max_size = max_size
-        self.buffer = deque(maxlen=max_size)
+
+        # deque automatically removes the oldest experience
+        # when max_size is reached.
+        self.buffer = deque(
+            maxlen=max_size
+        )
 
     def add(self, transition):
-        self.buffer.append(transition)
+        self.buffer.append(
+            transition
+        )
 
     def sample(self, batch_size):
         """
-        Return only the sampled transitions.
-
-        IMPORTANT:
-        This returns ONE object, not:
-            samples, indices
+        Return ONLY the sampled transitions.
         """
 
         sample_size = min(
@@ -1610,46 +1558,6 @@ class ReplayBuffer:
         return random.sample(
             self.buffer,
             sample_size
-        )
-
-    def __len__(self):
-        return len(self.buffer)
-
-
-# ============================================================
-# DQN AGENT
-# ============================================================
-
-class ReplayBuffer:
-    """
-    Standard uniform replay buffer.
-
-    We intentionally use uniform replay first.
-
-    Why?
-
-    Your current PER implementation can amplify unstable
-    TD errors. We want to first make the DQN mathematically
-    stable before introducing prioritized sampling.
-    """
-
-    def __init__(self, max_size=10000):
-        self.max_size = max_size
-        self.buffer = deque(maxlen=max_size)
-
-    def add(self, transition):
-        self.buffer.append(transition)
-
-    def sample(self, batch_size):
-
-        batch_size = min(
-            batch_size,
-            len(self.buffer)
-        )
-
-        return random.sample(
-            self.buffer,
-            batch_size
         )
 
     def __len__(self):
@@ -1763,6 +1671,9 @@ class OfflineRLAgent:
         done,
         behavior_prob=None
     ):
+        """
+        Store an experience in the replay buffer.
+        """
 
         self.memory.add(
             (
@@ -1996,225 +1907,154 @@ class OfflineRLAgent:
     # REPLAY
     # ========================================================
 
-    def replay(
-        self,
-        batch_size,
-    ):
+    def replay(self, batch_size):
+        """
+        Stable Double-DQN training step.
 
-        if (
-            len(self.memory)
-            < max(
-                batch_size,
-                self.warmup_steps,
-            )
+        Changes:
+        1. Uses uniform replay instead of PER.
+        2. Uses Double-DQN target calculation.
+        3. Clips rewards used for learning.
+        4. Clips Bellman targets to prevent runaway Q-values.
+        5. Uses a separate target network.
+        6. Updates the target network periodically instead
+        of after every single training step.
+        """
+
+    # --------------------------------------------------
+    # 1. Replay warm-up
+    # --------------------------------------------------
+
+        if len(self.memory) < max(
+            batch_size,
+            self.warmup_steps
         ):
-
             return None
 
-        minibatch, indices = (
-            self.memory.sample(
-                batch_size
-            )
-        )
+        # --------------------------------------------------
+        # 2. Sample experiences
+        #
+        # IMPORTANT:
+        # Our new ReplayBuffer returns ONLY the minibatch.
+        # --------------------------------------------------
 
-        if not minibatch:
+        minibatch = self.memory.sample(batch_size)
 
-            return None
-
-        # ----------------------------------------------------
-        # Prepare batch
-        # ----------------------------------------------------
+        # --------------------------------------------------
+        # 3. Convert batch to arrays
+        # --------------------------------------------------
 
         states = np.asarray(
-            [
-                x[0][0]
-                for x in minibatch
-            ],
-            dtype=np.int32,
+            [x[0][0] for x in minibatch],
+            dtype=np.int32
         )
 
         actions = np.asarray(
-            [
-                x[1]
-                for x in minibatch
-            ],
-            dtype=np.int32,
+            [x[1] for x in minibatch],
+            dtype=np.int32
         )
 
         rewards = np.asarray(
             [
-                x[2]
+                np.clip(x[2], -1.0, 1.0)
                 for x in minibatch
             ],
-            dtype=np.float32,
+            dtype=np.float32
         )
 
         next_states = np.asarray(
-            [
-                x[3][0]
-                for x in minibatch
-            ],
-            dtype=np.int32,
+            [x[3][0] for x in minibatch],
+            dtype=np.int32
         )
 
         dones = np.asarray(
-            [
-                x[4]
-                for x in minibatch
-            ],
-            dtype=np.float32,
+            [x[4] for x in minibatch],
+            dtype=np.float32
         )
 
-        # ----------------------------------------------------
-        # Current Q-values
-        # ----------------------------------------------------
+        # --------------------------------------------------
+        # 4. Current Q-values
+        # --------------------------------------------------
 
-        current_q = (
-            self.model.predict(
-                states,
-                verbose=0,
-            )
-        )
+        current_q = self.model(
+            states,
+            training=False
+        ).numpy()
 
-        # ----------------------------------------------------
-        # Double DQN
+        # --------------------------------------------------
+        # 5. Double-DQN
         #
-        # Online network:
-        #     selects action
-        #
-        # Target network:
-        #     evaluates action
-        # ----------------------------------------------------
+        # Online network chooses the next action.
+        # Target network evaluates that action.
+        # --------------------------------------------------
 
-        next_q_online = (
-            self.model.predict(
-                next_states,
-                verbose=0,
-            )
-        )
+        next_q_online = self.model(
+            next_states,
+            training=False
+        ).numpy()
 
         next_actions = np.argmax(
             next_q_online,
-            axis=1,
+            axis=1
         )
 
-        next_q_target = (
-            self.target_model.predict(
-                next_states,
-                verbose=0,
-            )
+        next_q_target = self.target_model(
+            next_states,
+            training=False
+        ).numpy()
+
+        next_q = next_q_target[
+            np.arange(len(minibatch)),
+            next_actions
+        ]
+
+        # --------------------------------------------------
+        # 6. Bellman target
+        # --------------------------------------------------
+
+        targets_q = (
+            rewards
+            + self.gamma
+            * next_q
+            * (1.0 - dones)
         )
 
-        # ----------------------------------------------------
-        # Build targets
-        # ----------------------------------------------------
-
-        targets = current_q.copy()
-
-        td_errors = []
-
-        for i in range(
-            len(minibatch)
-        ):
-
-            old_q = float(
-                current_q[i][
-                    actions[i]
-                ]
-            )
-
-            if dones[i]:
-
-                target_q = float(
-                    rewards[i]
-                )
-
-            else:
-
-                target_q = float(
-                    rewards[i]
-                    + self.gamma
-                    * next_q_target[i][
-                        next_actions[i]
-                    ]
-                )
-
-            # ------------------------------------------------
-            # Numerical protection.
-            #
-            # Q-values should not become infinite.
-            # ------------------------------------------------
-
-            if not np.isfinite(
-                target_q
-            ):
-
-                target_q = float(
-                    rewards[i]
-                )
-
-            target_q = float(
-                np.clip(
-                    target_q,
-                    -10.0,
-                    10.0,
-                )
-            )
-
-            targets[i][
-                actions[i]
-            ] = target_q
-
-            td_error = (
-                target_q
-                - old_q
-            )
-
-            td_errors.append(
-                abs(td_error)
-            )
-
-        # ----------------------------------------------------
-        # Update PER priorities AFTER target calculation.
-        # ----------------------------------------------------
-
-        self.memory.update_priorities(
-            indices,
-            td_errors,
+        # Safety limit to prevent Q-value runaway.
+        targets_q = np.clip(
+            targets_q,
+            -10.0,
+            10.0
         )
 
-        # ----------------------------------------------------
-        # Train online network
-        # ----------------------------------------------------
+        # --------------------------------------------------
+        # 7. Only modify Q-value of selected action
+        # --------------------------------------------------
+
+        target_matrix = current_q.copy()
+
+        target_matrix[
+            np.arange(len(minibatch)),
+            actions
+        ] = targets_q
+
+        # --------------------------------------------------
+        # 8. Train online network
+        # --------------------------------------------------
 
         loss = self.model.train_on_batch(
             states,
-            targets,
+            target_matrix
         )
 
-        if isinstance(
-            loss,
-            (list, tuple),
-        ):
-
-            loss = loss[0]
-
-        loss = float(
-            np.nan_to_num(
-                loss,
-                nan=0.0,
-                posinf=1e6,
-                neginf=0.0,
-            )
-        )
+        # --------------------------------------------------
+        # 9. Count training steps
+        # --------------------------------------------------
 
         self.train_steps += 1
 
-        # ----------------------------------------------------
-        # HARD TARGET UPDATE
-        #
-        # Instead of updating target after every replay.
-        # ----------------------------------------------------
+        # --------------------------------------------------
+        # 10. Periodic target-network update
+        # --------------------------------------------------
 
         if (
             self.train_steps
@@ -2224,29 +2064,12 @@ class OfflineRLAgent:
 
             self.update_target_network()
 
-        return {
-            "loss": loss,
-            "mean_q": float(
-                np.mean(current_q)
-            ),
-            "max_abs_q": float(
-                np.max(
-                    np.abs(
-                        current_q
-                    )
-                )
-            ),
-            "mean_td_error": float(
-                np.mean(
-                    td_errors
-                )
-            ),
-            "max_td_error": float(
-                np.max(
-                    td_errors
-                )
-            ),
-        }
+            print(
+                f"[INFO] Target network updated "
+                f"at step {self.train_steps}"
+            )
+
+        return float(loss)
 
 
 # ============================================================
@@ -2605,35 +2428,18 @@ def main():
                 # Train only after replay warmup.
                 # ------------------------------------------------
 
-                metrics = agent.replay(
-                    batch_size
-                )
+                metrics = agent.replay(batch_size)
 
                 if metrics is not None:
-
-                    ep_losses.append(
-                        metrics["loss"]
-                    )
-
-                    ep_q_values.append(
-                        metrics["mean_q"]
-                    )
-
-                    ep_max_q.append(
-                        metrics["max_abs_q"]
-                    )
-
-                    ep_td_errors.append(
-                        metrics[
-                            "mean_td_error"
-                        ]
-                    )
-
-                    ep_max_td.append(
-                        metrics[
-                            "max_td_error"
-                        ]
-                    )
+                    if isinstance(metrics, dict):
+                        ep_losses.append(metrics.get("loss", 0.0))
+                        if "mean_q" in metrics: ep_q_values.append(metrics["mean_q"])
+                        if "max_abs_q" in metrics: ep_max_q.append(metrics["max_abs_q"])
+                        if "mean_td_error" in metrics: ep_td_errors.append(metrics["mean_td_error"])
+                        if "max_td_error" in metrics: ep_max_td.append(metrics["max_td_error"])
+                    else:
+                        # Assuming metrics is just the loss float
+                        ep_losses.append(float(metrics))
 
                 if done:
 
